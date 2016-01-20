@@ -1,0 +1,98 @@
+#데이터 불러오기
+library("data.table")
+
+for (SKIP in seq(1,100000000,10000000)) {
+  if (SKIP == 1) {
+    taxi12<-fread("c:/택시/taximatch/TaxiMach_Link_Dataset_Full_201512.txt",sep=",",stringsAsFactor=FALSE,nrows=10000000)
+  }  else {
+    taxi12<-fread("c:/택시/taximatch/TaxiMach_Link_Dataset_Full_201512.txt",sep=",",stringsAsFactor=FALSE,nrows=10000000,skip=SKIP)
+    setnames(taxi12,1:9,c("T_Link_ID","Day","Time","Weather","Dest","CntOn","CntOff","CntEmp","V9"))
+  }
+  taxi12$Time<-floor(taxi12$Time/2)
+  taxi12<-subset(taxi12,select=c("T_Link_ID","CntOn","CntOff","CntEmp","Time"))
+  taxi12 <- taxi12[,lapply(.SD,sum,na.rm=TRUE),by=list(T_Link_ID,Time)]
+  write.csv(taxi12,paste0("c:/택시/preprocessing/taxi_",SKIP,".csv"),row.names=FALSE)
+  rm(list=ls())
+  gc()
+}
+
+file <- dir("F:/네이버/택시테이터/preprocessing/")
+
+for (i in file) {
+  assign(i,fread(paste0("F:/네이버/택시테이터/preprocessing/",i),header=TRUE,stringsAsFactors=FALSE))
+}
+
+taxi12 <- rbind(taxi_1.csv,taxi_10000001.csv,taxi_20000001.csv,taxi_30000001.csv,taxi_40000001.csv,taxi_50000001.csv,taxi_60000001.csv,taxi_70000001.csv,taxi_80000001.csv,taxi_90000001.csv)
+rm(taxi_1.csv,taxi_10000001.csv,taxi_20000001.csv,taxi_30000001.csv,taxi_40000001.csv,taxi_50000001.csv,taxi_60000001.csv,taxi_70000001.csv,taxi_80000001.csv,taxi_90000001.csv,file,i)
+
+taxi12 <- taxi12[,lapply(.SD,sum,na.rm=TRUE),by=list(T_Link_ID,Time)]
+
+
+link<-fread("F:/네이버/택시테이터/Link_WGS84_Link_Info_150M.txt", sep=",")
+setnames(link,1:7,c("T_Link_ID","X_MAX","Y_MAX","X_MIN","Y_MIN","X_PART","Y_PART"))
+#SiGunGu<-fread("C:/택시/dest_code.csv",header=TRUE, stringsAsFactor = F)
+kslink<-fread("C:/택시/KSLink_ID_MappingTable_201501.csv",header=TRUE, stringsAsFactor = F)
+
+ taxi12<-taxi12[,1:5, with=FALSE]
+
+#######################################################
+#time이 오후 11시 부터~ 2시까지 (사고율이 높고, 고객의 콜수가 가장 높을 때)
+a<- taxi12[Time==0,]
+b<-taxi12[Time==1,]
+c<-taxi12[Time==22,]
+d<-taxi12[Time==23,]
+taxi12<-rbind(a,b,c,d)
+####################################################################################################################
+
+
+link<-fread("F:/네이버/택시테이터/Link_WGS84_Link_Info_150M.txt", sep=",")
+setnames(link,1:7,c("T_Link_ID","X_MAX","Y_MAX","X_MIN","Y_MIN","X_PART","Y_PART"))
+link$X <- (link$X_MAX+link$X_MIN)/2
+link$Y <- (link$Y_MAX+link$Y_MIN)/2
+link <- subset(link,select=c("T_Link_ID","X","Y"))
+setkey(taxi12, T_Link_ID)
+taxi<-merge(taxi12,link, by="T_Link_ID")
+
+
+
+ install.packages('dplyr')
+ library(dplyr)
+
+taxi11 = taxi %>% group_by(Time, T_Link_ID) %>% summarise(CntEmp = sum(CntEmp),X= X[1], Y=Y[1])
+taxi11<- taxi11[taxi11$Time %in%c(0,1,22,23),]
+result <- ggmap(get_googlemap(center=c("seoul"),zoom=13)) + geom_point(data=taxi11[taxi11$Time,],aes(x=X, y=Y,alpha=taxi11$Time,size=cntemp))
+result
+
+
+############################################################
+
+taxi11 %>%
+   select(X, Y, Time, Cntemp)
+
+install.packages("leaflet")
+library(leaflet)
+leaflet(taxi11) %>%
+  setView(lng=taxi11$x, lat=taxi11$y, zoom=11)%>%
+ addProviderTiles("Stamen.Toner) %>% 
+ addCircles(lng = ~lon, lat=~lat)
+m  # Print the map
+
+
+
+
+# 염상
+
+
+library(ggplot2)
+emp<-emp[emp$Time%in%c(0,1,22,23),]
+library(ggmap)
+emp<-emp[order(emp$bin, decreasing=TRUE), ] 
+emp<-emp[1:1000,]
+
+
+ 
+result <- ggmap(get_googlemap(center=c("seoul"),zoom=7)) + geom_point(data=emp,aes(x=X, y=Y,colour=factor(Time),alpha=bin,size=6))
+result+facet_wrap(~Time)
+
+
+result + geom_point() + geom_density2d() + facet_wrap(~Time)
